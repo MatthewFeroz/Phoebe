@@ -1,9 +1,15 @@
+from __future__ import annotations
+
+import json
+import asyncio
+from pathlib import Path
 from collections.abc import Iterator, MutableMapping
 from typing import TypeVar
+from collections import defaultdict
+from app.database import shifts_db, shift_locks
 
 K = TypeVar("K")
 V = TypeVar("V")
-
 
 class InMemoryKeyValueDatabase[K, V]:
     """
@@ -33,3 +39,24 @@ class InMemoryKeyValueDatabase[K, V]:
 
     def __len__(self) -> int:
         return len(self._store)
+
+#Create global databases
+caregivers_db: InMemoryKeyValueDatabase[str, dict] = InMemoryKeyValueDatabase()
+shifts_db: InMemoryKeyValueDatabase[str, dict] = InMemoryKeyValueDatabase()
+
+def load_sample_data() -> None:
+    # This line gets the directory path where the current file (database.py) is located.
+    sample_path = Path(__file__).parent / "sample_data.json"
+    with open(sample_path) as f:
+        data = json.load(f)
+    
+    for caregiver in data.get("caregivers", []):
+        caregivers_db.put(caregiver["id"], caregiver)
+    
+    for shift in data.get("shifts", []):
+        shift.setdefault("status", "open")
+        shift.setdefault("assigned_caregiver", None)
+        shift.setdefault("fanout_round", 0)
+        shift.setdefault("contacted", [])
+        shifts_db.put(shift["id"], shift)
+
