@@ -1,6 +1,7 @@
 from fastapi import FastAPI, HTTPException
 from app.database import shifts_db, caregivers_db, load_sample_data
 from app.notifier import send_sms, place_phone_call
+from pydantic import BaseModel
 import logging
 
 import asyncio
@@ -74,7 +75,7 @@ def create_app():
             raise HTTPException(status_code=404, detail="Caregiver not found")
 
         #Parse intent (accept / decline / unknown)
-        intent = await parse_shift_request_message_intent(message.body)
+        intent = await parse_shift_request_message_intent(message.from_number)
 
         if intent == ShiftRequestMessageIntent.ACCEPT:
             #Attempt to claim shift (critical concurrency-safe logic)
