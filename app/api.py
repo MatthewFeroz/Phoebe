@@ -2,6 +2,8 @@ from fastapi import FastAPI, HTTPException
 from app.database import shifts_db, caregivers_db, load_sample_data
 from app.notifier import send_sms, place_phone_call
 from pydantic import BaseModel
+from app.intent import parse_shift_request_message_intent, ShiftRequestMessageIntent
+from app.database import claim_shift
 import logging
 
 import asyncio
@@ -13,7 +15,7 @@ class InboundMessage(BaseModel):
     """Schema for inbound caregiver messages."""
     from_number: str
     shift_id: str
-    message: str
+    body: str
 
 def create_app():
     app = FastAPI()
@@ -22,8 +24,6 @@ def create_app():
     @app.get("/health")
     async def health():
         return {"status": "ok"}
-
-    # This line tells FastAPI to handle HTTP POST requests sent to the URL path "/shifts/{shift_id}/fanout" with the function defined below it.
     @app.post("/shifts/{shift_id}/fanout")
     async def fanout_shift(shift_id: str):
         shift = shifts_db.get(shift_id)
@@ -68,14 +68,14 @@ def create_app():
     @app.post("/messages/inbound")
     async def inbound_message(message: InboundMessage):
         caregiver = next(
-            (c for c in caregivers_db.all() if c["phone"] == message.from_),
+            (c for c in caregivers_db.all() if c["phone"] == message.from_number),
             None
         )
         if not caregiver:
             raise HTTPException(status_code=404, detail="Caregiver not found")
 
         #Parse intent (accept / decline / unknown)
-        intent = await parse_shift_request_message_intent(message.from_number)
+        intent = await parse_shift_request_message_intent(message.body)
 
         if intent == ShiftRequestMessageIntent.ACCEPT:
             #Attempt to claim shift (critical concurrency-safe logic)
