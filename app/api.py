@@ -11,6 +11,8 @@ import asyncio
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+ESCALATION_DELAY = 600  # default 10 minutes
+
 class InboundMessage(BaseModel):
     """Schema for inbound caregiver messages."""
     from_number: str
@@ -100,7 +102,7 @@ def create_app():
 
 
 async def escalate_to_phone(shift_id: str):
-    await asyncio.sleep(30)  # 30 seconds
+    await asyncio.sleep(ESCALATION_DELAY)  # 10 minutes
     shift = shifts_db.get(shift_id)
     if shift and shift["status"] == "open" and shift["fanout_round"] == 1:
         eligible_caregivers = [
