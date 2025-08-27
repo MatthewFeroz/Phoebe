@@ -50,7 +50,7 @@ def load_sample_data() -> None:
     """
     Loads sample caregiver and shift data from 'sample_data.json' into the in-memory databases.
 
-    - Reads the JSON file located in the same directory as this file.
+    - Reads the JSON file located in the root directory.
     - Populates the caregivers_db with caregiver records, keyed by caregiver ID.
     - Populates the shifts_db with shift records, keyed by shift ID.
       For each shift, ensures default fields:
