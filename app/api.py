@@ -8,9 +8,14 @@ import asyncio
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+class InboundMessage(BaseModel):
+    """Schema for inbound caregiver messages."""
+    from_number: str
+    shift_id: str
+    message: str
+
 def create_app():
     app = FastAPI()
-    
     load_sample_data()
 
     @app.get("/health")
@@ -57,6 +62,39 @@ def create_app():
 
         return {"message": "Fanout started", "shift": shift}
 
+        # ✅ Inbound endpoint
+
+    @app.post("/messages/inbound")
+    async def inbound_message(message: InboundMessage):
+        caregiver = next(
+            (c for c in caregivers_db.all() if c["phone"] == message.from_),
+            None
+        )
+        if not caregiver:
+            raise HTTPException(status_code=404, detail="Caregiver not found")
+
+        #Parse intent (accept / decline / unknown)
+        intent = await parse_shift_request_message_intent(message.body)
+
+        if intent == ShiftRequestMessageIntent.ACCEPT:
+            #Attempt to claim shift (critical concurrency-safe logic)
+            success = await claim_shift(message.shift_id, caregiver["id"])
+            shift = shifts_db.get(message.shift_id)
+
+            if success:
+                logger.info(f"Shift {message.shift_id} claimed by {caregiver['name']}")
+                return {"message": "Shift successfully claimed", "shift": shift}
+            else:
+                logger.info(f"Shift {message.shift_id} already claimed")
+                return {"message": "Shift already claimed", "shift": shift}
+
+        elif intent == ShiftRequestMessageIntent.DECLINE:
+            logger.info(f"Caregiver {caregiver['name']} declined shift {message.shift_id}")
+            return {"message": "Caregiver declined the shift"}
+
+        else:
+            logger.info(f"Unrecognized message from {caregiver['name']}: {message.body}")
+            return {"message": "Message not understood"}
     return app
 
 
